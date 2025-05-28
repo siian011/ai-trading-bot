@@ -1,0 +1,706 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Crypto Bot</title>
+    <style>
+        body {
+            background-color: #ffffff;
+            color: #001f3f;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 16px;
+        }
+        select, input[type="number"], input[type="text"] {
+            background-color: #ffffff;
+            color: #001f3f;
+            border: 1px solid #001f3f;
+            border-radius: 5px;
+            padding: 10px;
+            width: 100%;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        select option {
+            background-color: #ffffff;
+            color: #001f3f;
+        }
+        button {
+            background-color: #001f3f;
+            color: #ffffff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .tooltip {
+            cursor: help;
+            margin-left: 5px;
+            color: #001f3f;
+        }
+        .stats, .log {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #001f3f;
+            border-radius: 5px;
+        }
+        @media (max-width: 600px) {
+            select, input, button {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Trading Crypto Bot 🚀</h1>
+        <h2>Trading Settings</h2>
+        <label for="tradingPairs">Trading Pairs (Select up to 3):</label>
+        <select id="tradingPairs" multiple size="7">
+            <option value="BTC_USDT" selected>BTC/USDT</option>
+            <option value="ETH_USDT" selected>ETH/USDT</option>
+            <option value="DOGE_USDT">DOGE/USDT</option>
+            <option value="ADA_USDT">ADA/USDT</option>
+            <option value="SOL_USDT">SOL/USDT</option>
+            <option value="XRP_USDT">XRP/USDT</option>
+            <option value="DOT_USDT">DOT/USDT</option>
+        </select>
+        <span class="tooltip" title="Select up to 3 cryptocurrency pairs for trading.">?</span>
+
+        <label for="investmentAmount">Investment Amount per Trade (USDT):</label>
+        <input type="number" id="investmentAmount" value="1000" min="0.01" step="0.01">
+        <span class="tooltip" title="Enter the amount to invest per trade in USDT.">?</span>
+
+        <label for="riskLevel">Risk Level:</label>
+        <select id="riskLevel">
+            <option value="low" selected>Low</option>
+            <option value="high">High</option>
+        </select>
+        <span class="tooltip" title="Choose Low for conservative trading or High for aggressive trading.">?</span>
+
+        <label for="stopLoss">Stop-Loss (%):</label>
+        <input type="number" id="stopLoss" value="2" min="0.1" max="100" step="0.1">
+        <span class="tooltip" title="Set the percentage loss to stop trading.">?</span>
+
+        <label for="trailingStop">Trailing Stop (%):</label>
+        <input type="number" id="trailingStop" value="1" min="0" max="100" step="0.1">
+        <span class="tooltip" title="Set the trailing stop percentage for dynamic loss protection.">?</span>
+
+        <label for="tradingStrategy">Trading Strategy:</label>
+        <select id="tradingStrategy">
+            <option value="quantum" selected>🎯 Quantum Scalping</option>
+            <option value="arbitrage">⚡ Lightning Arbitrage</option>
+            <option value="neural">🧮 Neural Prediction</option>
+            <option value="momentum">📊 Momentum Surge</option>
+        </select>
+        <span class="tooltip" title="Select the AI trading strategy to use.">?</span>
+
+        <h2>API Settings</h2>
+        <label for="apiKey">Crypto.com API Key:</label>
+        <input type="text" id="apiKey" placeholder="Enter your API key">
+        <span class="tooltip" title="Enter your Crypto.com API key for live trading.">?</span>
+
+        <label for="secretKey">Crypto.com Secret Key:</label>
+        <input type="text" id="secretKey" placeholder="Enter your secret key">
+        <span class="tooltip" title="Enter your Crypto.com secret key for live trading.">?</span>
+
+        <button id="saveKeys">Save Keys</button>
+
+        <h2>Trading Controls</h2>
+        <button id="startButton" disabled>Start Trading</button>
+        <button id="stopButton" disabled>Stop Trading</button>
+        <button id="boostButton" disabled>Boost</button>
+        <button id="analyzeButton">Analyze Trades</button>
+        <button id="exportButton">Export Trades</button>
+        <button id="clearButton">Clear Database</button>
+        <button id="refreshPairs">Refresh Trading Pairs</button>
+
+        <h2>Trading Stats</h2>
+        <div class="stats">
+            <p>Balance: <span id="balance">$0.00</span></p>
+            <p>Total Profit: <span id="totalProfit">$0.00</span></p>
+            <p>ROI: <span id="roi">0.00%</span></p>
+            <p>Trades: <span id="trades">0</span></p>
+            <p>Win Rate: <span id="winRate">0%</span></p>
+            <p>Profit/Min: <span id="profitMin">$0.00</span></p>
+            <p>Trades/Sec: <span id="tradesSec">0</span></p>
+            <p>Latency: <span id="latency">1ms</span></p>
+        </div>
+
+        <h2>Trading Log</h2>
+        <div class="log" id="tradingLog" aria-live="polite">
+            <p>ULTRA-FAST AI TRADER initialized</p>
+            <p>Enter API keys to connect to Crypto.com</p>
+            <p>Live trading mode: ACTIVATED</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script>
+        // API credentials
+        let apiKey = '';
+        let secretKey = '';
+
+        // Rate limiter
+        class RateLimiter {
+            constructor(maxRequests, intervalMs) {
+                this.maxRequests = maxRequests;
+                this.intervalMs = intervalMs;
+                this.requests = [];
+            }
+
+            canRequest() {
+                const now = Date.now();
+                this.requests = this.requests.filter(time => now - time < this.intervalMs);
+                if (this.requests.length < this.maxRequests) {
+                    this.requests.push(now);
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        const rateLimiter = new RateLimiter(60, 1000); // 60/sec
+
+        // Price history for volatility
+        const priceHistory = new Map();
+
+        // Calculate volatility
+        function calculateVolatility(tradingPair, newPrice) {
+            const history = priceHistory.get(tradingPair) || [];
+            history.push({ price: newPrice, timestamp: Date.now() });
+            if (history.length > 20) history.shift();
+            priceHistory.set(tradingPair, history);
+
+            if (history.length < 2) return 0.001;
+            const returns = [];
+            for (let i = 1; i < history.length; i++) {
+                returns.push((history[i].price - history[i-1].price) / history[i-1].price);
+            }
+            const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+            const variance = returns.reduce((sum, r) => sum + (r - mean) ** 2, 0) / returns.length;
+            return Math.sqrt(variance) || 0.001;
+        }
+
+        // Form validation
+        function validateForm() {
+            const tradingPairs = Array.from(document.getElementById("tradingPairs").selectedOptions).map(opt => opt.value);
+            const investmentAmount = parseFloat(document.getElementById("investmentAmount").value);
+            const riskLevel = document.getElementById("riskLevel").value;
+            const stopLoss = parseFloat(document.getElementById("stopLoss").value);
+            const trailingStop = parseFloat(document.getElementById("trailingStop").value);
+            const tradingStrategy = document.getElementById("tradingStrategy").value;
+            const startButton = document.getElementById("startButton");
+            const stopButton = document.getElementById("stopButton");
+            const boostButton = document.getElementById("boostButton");
+
+            const isValid = apiKey && secretKey && tradingPairs.length > 0 && tradingPairs.length <= 3 && 
+                           !isNaN(investmentAmount) && investmentAmount > 0 && riskLevel && 
+                           !isNaN(stopLoss) && stopLoss > 0 && !isNaN(trailingStop) && trailingStop >= 0 && tradingStrategy;
+
+            startButton.disabled = !isValid;
+            stopButton.disabled = true;
+            boostButton.disabled = !isValid;
+            if (!isValid) {
+                document.getElementById("tradingLog").innerHTML += `<p>Form invalid: API=${!!apiKey}, Pairs=${tradingPairs.length}, Investment=${investmentAmount}, StopLoss=${stopLoss}</p>`;
+            } else {
+                document.getElementById("tradingLog").innerHTML += `<p>Form valid: Ready to trade.</p>`;
+            }
+            return isValid;
+        }
+
+        // Event listeners for form validation
+        document.getElementById("tradingPairs").addEventListener("change", () => {
+            const select = document.getElementById("tradingPairs");
+            if (select.selectedOptions.length > 3) {
+                select.selectedOptions[0].selected = false;
+            }
+            validateForm();
+        });
+        document.getElementById("investmentAmount").addEventListener("input", validateForm);
+        document.getElementById("riskLevel").addEventListener("change", validateForm);
+        document.getElementById("stopLoss").addEventListener("input", validateForm);
+        document.getElementById("trailingStop").addEventListener("input", validateForm);
+        document.getElementById("tradingStrategy").addEventListener("change", validateForm);
+
+        // Save API keys
+        document.getElementById("saveKeys").addEventListener("click", async () => {
+            apiKey = document.getElementById("apiKey").value.trim();
+            secretKey = document.getElementById("secretKey").value.trim();
+            if (apiKey && secretKey) {
+                document.getElementById("tradingLog").innerHTML += "<p>API keys saved. Verifying...</p>";
+                const balance = await fetchAccountBalance();
+                if (balance !== null) {
+                    document.getElementById("balance").textContent = `$${balance.toFixed(2)}`;
+                    document.getElementById("tradingLog").innerHTML += `<p>Connected to Crypto.com. Balance: $${balance.toFixed(2)}</p>`;
+                } else {
+                    apiKey = secretKey = '';
+                    document.getElementById("tradingLog").innerHTML += "<p>Invalid API keys. Please check and try again.</p>";
+                }
+            } else {
+                document.getElementById("tradingLog").innerHTML += "<p>Please enter both API and secret keys.</p>";
+            }
+            validateForm();
+        });
+
+        // Sign API request
+        function signRequest(params, method, endpoint) {
+            const paramString = Object.keys(params).sort().map(key => `${key}${params[key]}`).join('');
+            const sigPayload = `${method}${endpoint}${paramString}${secretKey}`;
+            return CryptoJS.HmacSHA256(sigPayload, secretKey).toString(CryptoJS.enc.Hex);
+        }
+
+        // Fetch with retry
+        async function fetchWithRetry(url, options, retries = 3, delay = 500) {
+            for (let i = 0; i < retries; i++) {
+                if (!rateLimiter.canRequest()) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    i--;
+                    continue;
+                }
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    const data = await response.json();
+                    return { data, status: response.status };
+                } catch (error) {
+                    document.getElementById("tradingLog").innerHTML += `<p>API error for ${url}: ${error.message} (Attempt ${i + 1}/${retries})</p>`;
+                    if (i < retries - 1) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    } else {
+                        throw error;
+                    }
+                }
+            }
+        }
+
+        // Fetch account balance
+        async function fetchAccountBalance() {
+            try {
+                const method = 'private/get-account-summary';
+                const params = {
+                    id: Date.now(),
+                    method,
+                    api_key: apiKey,
+                    nonce: Date.now()
+                };
+                params.sig = signRequest(params, method, '/v2/private/get-account-summary');
+                const url = 'http://localhost:5000/api/private'; // Proxy
+                const { data, status } = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(params)
+                });
+                if (status === 200 && data.result && data.result.accounts) {
+                    const usdtBalance = data.result.accounts.find(acc => acc.currency === 'USDT')?.balance || 0;
+                    return parseFloat(usdtBalance);
+                }
+                throw new Error("Invalid balance response");
+            } catch (error) {
+                document.getElementById("tradingLog").innerHTML += `<p>Error fetching balance: ${error.message}</p>`;
+                return null;
+            }
+        }
+
+        // Fetch supported instruments
+        async function getSupportedInstruments() {
+            const defaultPairs = ['BTC_USDT', 'ETH_USDT', 'DOGE_USDT', 'ADA_USDT', 'SOL_USDT', 'XRP_USDT', 'DOT_USDT'];
+            try {
+                const url = 'http://localhost:5000/api/instruments';
+                const { data, status } = await fetchWithRetry(url, { method: 'GET' });
+                if (status === 200 && data.result && Array.isArray(data.result.data)) {
+                    const spotPairs = data.result.data
+                        .filter(instrument => instrument.instrument_type === 'SPOT' && instrument.instrument_name)
+                        .map(instrument => instrument.instrument_name)
+                        .filter(name => name.includes('_USDT'));
+                    document.getElementById("tradingLog").innerHTML += `<p>Fetched ${spotPairs.length} trading pairs.</p>`;
+                    return [...new Set([...defaultPairs, ...spotPairs])];
+                }
+                document.getElementById("tradingLog").innerHTML += `<p>No valid pairs from API. Using defaults.</p>`;
+                return defaultPairs;
+            } catch (error) {
+                document.getElementById("tradingLog").innerHTML += `<p>Error fetching pairs: ${error.message}. Using defaults.</p>`;
+                return defaultPairs;
+            }
+        }
+
+        // Populate trading pair dropdown
+        async function populateTradingPairs() {
+            const tradingPairSelect = document.getElementById("tradingPairs");
+            const defaultPairs = ['BTC_USDT', 'ETH_USDT', 'DOGE_USDT', 'ADA_USDT', 'SOL_USDT', 'XRP_USDT', 'DOT_USDT'];
+
+            tradingPairSelect.innerHTML = defaultPairs.map(pair => 
+                `<option value="${pair}" ${['BTC_USDT', 'ETH_USDT'].includes(pair) ? 'selected' : ''}>${pair}</option>`
+            ).join('');
+
+            try {
+                const instruments = await getSupportedInstruments();
+                if (instruments.length > 0) {
+                    tradingPairSelect.innerHTML = instruments.map(pair => 
+                        `<option value="${pair}" ${['BTC_USDT', 'ETH_USDT'].includes(pair) ? 'selected' : ''}>${pair}</option>`
+                    ).join('');
+                    document.getElementById("tradingLog").innerHTML += `<p>Trading pairs updated.</p>`;
+                }
+            } catch (error) {
+                document.getElementById("tradingLog").innerHTML += `<p>Failed to update pairs: ${error.message}.</p>`;
+            }
+            validateForm();
+        }
+
+        // Fetch real-time price
+        const priceCache = new Map();
+        async function getRealTimePrice(instrument) {
+            document.getElementById("tradingLog").innerHTML += `<p>Fetching price for ${instrument}...</p>`;
+            if (priceCache.has(instrument)) {
+                const { price, timestamp } = priceCache.get(instrument);
+                if (Date.now() - timestamp < 10) {
+                    document.getElementById("tradingLog").innerHTML += `<p>Cached price for ${instrument}: $${price}</p>`;
+                    return price;
+                }
+            }
+
+            try {
+                const url = `http://localhost:5000/api/ticker?instrument_name=${instrument}`;
+                const { data, status } = await fetchWithRetry(url, { method: 'GET' });
+                if (status === 200 && data.result && data.result.data && data.result.data.length > 0) {
+                    const price = parseFloat(data.result.data[0].a);
+                    if (isNaN(price) || price <= 0) {
+                        throw new Error("Invalid price");
+                    }
+                    priceCache.set(instrument, { price, timestamp: Date.now() });
+                    document.getElementById("tradingLog").innerHTML += `<p>Fetched price for ${instrument}: $${price}</p>`;
+                    return price;
+                }
+                throw new Error("Invalid response");
+            } catch (error) {
+                document.getElementById("tradingLog").innerHTML += `<p>Error fetching price for ${instrument}: ${error.message}</p>`;
+                return null;
+            }
+        }
+
+        // Execute trade
+        async function executeTrade(tradingPair, price) {
+            document.getElementById("tradingLog").innerHTML += `<p>Preparing trade for ${tradingPair} at $${price}...</p>`;
+            const baseInvestment = parseFloat(document.getElementById("investmentAmount").value);
+            const balance = parseFloat(document.getElementById("balance").textContent.replace('$', '')) || 0;
+            const investmentAmount = Math.min(baseInvestment, balance / 3);
+            const riskLevel = document.getElementById("riskLevel").value;
+            const stopLoss = parseFloat(document.getElementById("stopLoss").value) / 100;
+            const trailingStop = parseFloat(document.getElementById("trailingStop").value) / 100;
+
+            if (investmentAmount <= 0 || balance < investmentAmount) {
+                document.getElementById("tradingLog").innerHTML += `<p>Insufficient balance: $${balance.toFixed(2)} < $${investmentAmount.toFixed(2)}</p>`;
+                return;
+            }
+
+            const volatility = calculateVolatility(tradingPair, price);
+            if (volatility < 0.0001) {
+                document.getElementById("tradingLog").innerHTML += `<p>Skipping trade for ${tradingPair}: Low volatility (${(volatility*100).toFixed(2)}%)</p>`;
+                return;
+            }
+
+            const baseTarget = riskLevel === "low" ? 0.01 : 0.02;
+            const profitTarget = baseTarget * (1 + volatility * 10);
+            const quantity = investmentAmount / price;
+
+            // Place buy order
+            try {
+                const buyParams = {
+                    id: Date.now(),
+                    method: 'private/create-order',
+                    api_key: apiKey,
+                    nonce: Date.now(),
+                    params: {
+                        instrument_name: tradingPair,
+                        side: 'BUY',
+                        type: 'MARKET',
+                        quantity: quantity.toFixed(8)
+                    }
+                };
+                buyParams.sig = signRequest(buyParams, 'private/create-order', '/v2/private/create-order');
+                const url = 'http://localhost:5000/api/private';
+                const buyResponse = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(buyParams)
+                });
+                if (!buyResponse.data.result) {
+                    throw new Error("Buy order failed");
+                }
+                document.getElementById("tradingLog").innerHTML += `<p>Buy order placed: ${tradingPair} at $${price}, Qty: ${quantity.toFixed(8)}</p>`;
+            } catch (error) {
+                document.getElementById("tradingLog").innerHTML += `<p>Buy order error for ${tradingPair}: ${error.message}</p>`;
+                return;
+            }
+
+            // Monitor for sell
+            const buyPrice = price;
+            let maxPrice = buyPrice;
+            let sellTriggered = false;
+            const checkInterval = setInterval(async () => {
+                try {
+                    const currentPrice = await getRealTimePrice(tradingPair);
+                    if (!currentPrice) return;
+
+                    maxPrice = Math.max(maxPrice, currentPrice);
+                    const trailingPrice = maxPrice * (1 - trailingStop);
+                    const profitPrice = buyPrice * (1 + profitTarget);
+                    const lossPrice = buyPrice * (1 - stopLoss);
+
+                    if (currentPrice >= profitPrice || currentPrice <= lossPrice || currentPrice <= trailingPrice) {
+                        clearInterval(checkInterval);
+                        sellTriggered = true;
+
+                        const sellParams = {
+                            id: Date.now(),
+                            method: 'private/create-order',
+                            api_key: apiKey,
+                            nonce: Date.now(),
+                            params: {
+                                instrument_name: tradingPair,
+                                side: 'SELL',
+                                type: 'MARKET',
+                                quantity: quantity.toFixed(8)
+                            }
+                        };
+                        sellParams.sig = signRequest(sellParams, 'private/create-order', '/v2/private/create-order');
+                        const sellResponse = await fetchWithRetry(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(sellParams)
+                        });
+                        if (!sellResponse.data.result) {
+                            throw new Error("Sell order failed");
+                        }
+
+                        const profit = (currentPrice - buyPrice) * quantity;
+                        const tradeLog = {
+                            timestamp: new Date().toISOString(),
+                            tradingPair,
+                            buyPrice,
+                            sellPrice: currentPrice,
+                            profit,
+                            riskLevel,
+                            volatility: volatility * 100
+                        };
+
+                        let trades = JSON.parse(localStorage.getItem('trades') || '[]');
+                        trades.push(tradeLog);
+                        localStorage.setItem('trades', JSON.stringify(trades));
+
+                        const newBalance = await fetchAccountBalance();
+                        if (newBalance !== null) {
+                            document.getElementById("balance").textContent = `$${newBalance.toFixed(2)}`;
+                        }
+                        const totalProfit = parseFloat(document.getElementById("totalProfit").textContent.replace('$', '')) + profit;
+                        const tradesCount = parseInt(document.getElementById("trades").textContent) + 1;
+                        const winRate = (trades.filter(t => t.profit > 0).length / tradesCount) * 100;
+
+                        document.getElementById("totalProfit").textContent = `$${totalProfit.toFixed(2)}`;
+                        document.getElementById("roi").textContent = `${((totalProfit / newBalance) * 100).toFixed(2)}%`;
+                        document.getElementById("trades").textContent = tradesCount;
+                        document.getElementById("winRate").textContent = `${winRate.toFixed(2)}%`;
+                        document.getElementById("tradingLog").innerHTML += `<p>Trade executed: ${tradingPair}, Buy: $${buyPrice}, Sell: $${currentPrice}, Profit: $${profit.toFixed(8)}</p>`;
+                    }
+                } catch (error) {
+                    document.getElementById("tradingLog").innerHTML += `<p>Sell monitor error for ${tradingPair}: ${error.message}</p>`;
+                    clearInterval(checkInterval);
+                }
+            }, 100);
+        }
+
+        let tradingActive = false;
+        let tradeCount = 0;
+        let lastTradeTime = Date.now();
+        document.getElementById("startButton").addEventListener("click", async () => {
+            if (!validateForm()) {
+                document.getElementById("tradingLog").innerHTML += `<p>Cannot start: Invalid form inputs.</p>`;
+                return;
+            }
+            tradingActive = true;
+            tradeCount = 0;
+            document.getElementById("startButton").disabled = true;
+            document.getElementById("stopButton").disabled = false;
+            document.getElementById("boostButton").disabled = false;
+            document.getElementById("tradingLog").innerHTML += "<p>Live trading started...</p>";
+
+            while (tradingActive) {
+                try {
+                    document.getElementById("tradingLog").innerHTML += "<p>Running trading loop...</p>";
+                    const tradingPairs = Array.from(document.getElementById("tradingPairs").selectedOptions).map(opt => opt.value);
+                    const pricePromises = tradingPairs.map(async pair => ({
+                        pair,
+                        price: await getRealTimePrice(pair)
+                    }));
+                    const prices = await Promise.all(pricePromises);
+
+                    for (const { pair, price } of prices) {
+                        if (price) {
+                            await executeTrade(pair, price);
+                            tradeCount++;
+                            const now = Date.now();
+                            if (now - lastTradeTime >= 1000) {
+                                document.getElementById("tradesSec").textContent = (tradeCount / ((now - lastTradeTime) / 1000)).toFixed(2);
+                                tradeCount = 0;
+                                lastTradeTime = now;
+                            }
+                        } else {
+                            document.getElementById("tradingLog").innerHTML += `<p>Skipping trade for ${pair}: No price.</p>`;
+                        }
+                    }
+                } catch (error) {
+                    document.getElementById("tradingLog").innerHTML += `<p>Loop error: ${error.message}</p>`;
+                }
+                await new Promise(resolve => setTimeout(resolve, 10)); // ~10/sec/pair
+            }
+        });
+
+        document.getElementById("stopButton").addEventListener("click", () => {
+            tradingActive = false;
+            document.getElementById("startButton").disabled = false;
+            document.getElementById("stopButton").disabled = true;
+            document.getElementById("boostButton").disabled = true;
+            document.getElementById("tradingLog").innerHTML += "<p>Trading stopped.</p>";
+            validateForm();
+        });
+
+        document.getElementById("boostButton").addEventListener("click", () => {
+            document.getElementById("tradingLog").innerHTML += "<p>Boost activated.</p>";
+        });
+
+        // Analyze trades
+        document.getElementById("analyzeButton").addEventListener("click", () => {
+            let trades = JSON.parse(localStorage.getItem('trades') || '[]');
+            if (trades.length === 0) {
+                document.getElementById("tradingLog").innerHTML += "<p>No trades available.</p>";
+                return;
+            }
+
+            let totalProfit = 0;
+            let wins = 0;
+            let losses = 0;
+            let pairProfits = {};
+            let riskProfits = { low: { profit: 0, count: 0 }, high: { profit: 0, count: 0 }};
+
+            trades.forEach(trade => {
+                totalProfit += trade.profit;
+                if (trade.profit > 0) wins++; else losses++;
+                pairProfits[trade.tradingPair] = (pairProfits[trade.tradingPair] || 0) + trade.profit;
+                riskProfits[trade.riskLevel].profit += trade.profit;
+                riskProfits[trade.riskLevel].count++;
+            });
+
+            const winRate = (wins / trades.length) * 100;
+            const roi = (totalProfit / parseFloat(document.getElementById("balance").textContent.replace('$', ''))) * 100;
+
+            let analysis = `<p>Analysis of ${trades.length} trades:</p>`;
+            analysis += `<p>Total Profit: $${totalProfit.toFixed(2)}</p>`;
+            analysis += `<p>ROI: ${roi.toFixed(2)}%</p>`;
+            analysis += `<p>Win Rate: ${winRate.toFixed(2)}% (${wins} wins, ${losses} losses)</p>`;
+            analysis += `<p>Profit by Trading Pair:</p>`;
+            for (let pair in pairProfits) {
+                analysis += `<p>${pair}: $${pairProfits[pair].toFixed(2)}</p>`;
+            }
+            analysis += `<p>Profit by Risk Level:</p>`;
+            analysis += `<p>Low Risk: $${riskProfits.low.profit.toFixed(2)} (${riskProfits.low.count)} trades)</p>`;
+            analysis += `<p>High Risk: $${riskProfits.high.profit.toFixed(2)} (${riskProfits.high.count} trades)</p>`;
+            document.getElementById("tradingLog").innerHTML += analysis;
+        });
+
+        // Export trades
+        document.getElementById("exportButton").addEventListener("click', () => {
+            let trades = JSON.parse(localStorage.getItem('trades') || '[]');
+            const csv = ['Timestamp,TradingPair,BuyPrice,SellPrice,Profit,RiskLevel']
+                .concat(trades.map(t => `${t.timestamp},${t.tradingPair},${t.buyPrice},${t.sellPrice},${t.profit},${t.riskLevel}`))
+                .join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'trades.csv';
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        });
+
+        // Clear database
+        document.getElementById("clearButton").addEventListener("click", () => {
+            if (confirm("Are you sure you want to clear all trade data?")) {
+                localStorage.removeItem('trades');
+                document.getElementById("totalProfit").textContent = "$0.00";
+                document.getElementById("roi").textContent = "0.00%";
+                document.getElementById("trades").textContent = "0";
+                document.getElementById("winRate").textContent = "0%";
+                document.getElementById("tradingLog").innerHTML += "<p>Trade database cleared.</p>";
+                fetchAccountBalance();
+            }
+        });
+
+        // Refresh trading pairs
+        document.getElementById("refreshPairs").addEventListener("click", () => {
+            populateTradingPairs();
+            document.getElementById("tradingLog").innerHTML += "<p>Attempting to refresh trading pairs...</p>";
+        });
+
+        // Initialize
+        populateTradingPairs();
+        validateForm();
+    </script>
+</body>
+</html>
